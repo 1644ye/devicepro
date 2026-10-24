@@ -143,8 +143,7 @@ public sealed class AppController
         var now = DateTimeOffset.Now;
         var states = _cache.GetSnapshots().Where(s => !s.Hidden).OrderBy(s => s.Order).ToArray();
         _native.SetTooltip(StateFormatter.TraySummary(states, now));
-        _native.SetDeviceIcons(states.Where(s => s.Battery.IsValid &&
-            (s.LastValidBatteryAt.HasValue || s.BatteryObservedAt.HasValue)).Select(s =>
+        _native.SetDeviceIcons(states.Where(StateFormatter.ShowDeviceTrayIcon).Select(s =>
         {
             var battery = s.Battery;
             bool historical = s.IsHistorical || s.IsSystemCache || s.Connection == ConnectionState.Disconnected ||
@@ -159,6 +158,8 @@ public sealed class AppController
     }
     TrayDeviceKind GetTrayDeviceKind(DeviceSnapshot snapshot)
     {
+        if(snapshot.Shape==DeviceShape.Mouse)return TrayDeviceKind.Mouse;
+        if(snapshot.Shape==DeviceShape.Keyboard)return TrayDeviceKind.Keyboard;
         var descriptor = _lastDiscovery.Devices.FirstOrDefault(d => d.Id == snapshot.DeviceId);
         if (descriptor is not null)
         {

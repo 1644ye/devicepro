@@ -30,7 +30,21 @@ public static class ProbeRunner
                 var device=JsonSerializer.Deserialize<DeviceDescriptor>(await File.ReadAllTextAsync(args[1]),JsonOptions)
                     ?? throw new InvalidDataException("设备请求为空");
                 DeviceReadResult result;
-                try {result=await VendorBatteryQueries.TryReadAsync(device) ?? api.ReadSystemCache(device);}
+                var bluetoothConnection=await Task.Run(()=>BluetoothConnectionQuery.Read(device)).ConfigureAwait(false);
+                try
+                {
+                    if(bluetoothConnection==ConnectionState.Disconnected)
+                        result=api.ReadSystemCache(device) with {Error="Windows ConnectionStatus 确认蓝牙已断开；电量仅为历史缓存。"};
+                    else if (OppoBatteryQuery.Matches(device))
+                    {
+                        try { result=OppoBatteryQuery.Read(device); }
+                        catch(Exception ex)
+                        {
+                            result=api.ReadSystemCache(device) with {Error=$"左右耳专用查询失败：{ex.Message}；仅保留系统公开的总电量。"};
+                        }
+                    }
+                    else result=await VendorBatteryQueries.TryReadAsync(device) ?? api.ReadSystemCache(device);
+                }
                 catch(Exception ex)
                 {
                     result=new DeviceReadResult{DeviceId=device.Id,QueryTime=DateTimeOffset.UtcNow,
@@ -39,6 +53,9 @@ public static class ProbeRunner
                         Transport=device.Transport,Connection=ConnectionState.Unknown,Source="隔离硬件探测",
                         Error=$"{ex.GetType().Name}: {ex.Message}"+(ex.Data["CleanupError"] is string cleanup?$"；清理失败：{cleanup}":"")};
                 }
+                if(result.Shape==DeviceShape.Generic) result=result with {Shape=DeviceAppearance.FromName(device.DisplayName)};
+                if(bluetoothConnection!=ConnectionState.Unknown && result.Connection!=ConnectionState.Connected)
+                    result=result with {Connection=bluetoothConnection,OnlineEvidenceAt=bluetoothConnection==ConnectionState.Connected?DateTimeOffset.UtcNow:result.OnlineEvidenceAt};
                 await File.WriteAllTextAsync(output,JsonSerializer.Serialize(result,JsonOptions));
             }
             return 0;

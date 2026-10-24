@@ -27,5 +27,9 @@ THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLI
 
 ## 其他参考资料
 
+- OppoPodsManager，Copyright (C) 2026 Zhaoyi-ya，GPL-3.0-or-later：https://github.com/Zhaoyi-ya/OppoPodsManager 。参考提交 `96eddba02a666907e8583613cfc3461206808fba` 的 `Control/Brands/Oppo/Commands/FrameCodec.cs`、`Features/Battery.cs` 与 Windows RFCOMM 传输实现，编写本项目的只读 Melody 电量查询和严格解析器。未移植设置、固件、通道扫描或界面。完整 GPL v3 文本见本项目 LICENSE。
+
 - WOB ZEN65 官方指南：https://wiki.wobkey.com/en/Products/ZEN-65/Quick-Start 。仅用于核实产品和连接方式；没有把 ZEN65 RT 的协议套用于普通 ZEN65。
 - Microsoft Win32 / Windows 设备属性文档：SetTimer、Shell_NotifyIconW、SetupAPI、HID、ConfigManager。调用系统 API 不包含厂商驱动代码。
+
+- 本机已安装 ATK HUB 3.2.28：只读检查设备映射、EVISION/HOLTEK 查询命令及报告字段，独立实现限定型号的电量读取。本项目及源码包不包含该厂商程序源码、资源或二进制。

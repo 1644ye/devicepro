@@ -7,13 +7,23 @@ public sealed class CardItem(DeviceSnapshot snapshot)
     public DeviceSnapshot Snapshot { get; } = snapshot;
     public string Id => Snapshot.TargetId;
     public string Name => Snapshot.DisplayName + (Snapshot.Hidden ? "（已隐藏）" : "");
-    public string Icon => "\uE950";
+    public DeviceShape Shape => Snapshot.Shape != DeviceShape.Generic ? Snapshot.Shape : DeviceAppearance.FromName(Snapshot.DisplayName);
+    public string Icon => Shape switch { DeviceShape.Keyboard => "\uE765", DeviceShape.Mouse => "\uE962", _ => "\uE950" };
+    public bool IsEarbud => Shape is DeviceShape.InEar or DeviceShape.EarClip;
+    public System.Windows.Visibility EarbudVisibility => IsEarbud ? System.Windows.Visibility.Visible : System.Windows.Visibility.Collapsed;
+    public System.Windows.Visibility GenericVisibility => IsEarbud ? System.Windows.Visibility.Collapsed : System.Windows.Visibility.Visible;
+    public string EarbudText => Snapshot.Earbuds.Text;
+    public string EarbudGeometry => Shape == DeviceShape.EarClip
+        ? "M 8,3 C 0,3 0,18 8,18 C 13,18 13,13 9,13 M 16,3 C 24,3 24,18 16,18 C 11,18 11,13 15,13"
+        : "M 3,3 C 0,3 0,9 4,9 L 5,19 L 8,19 L 8,6 C 8,2 5,1 3,3 Z M 21,3 C 24,3 24,9 20,9 L 19,19 L 16,19 L 16,6 C 16,2 19,1 21,3 Z";
     public string Battery => Snapshot.Battery.IsValid
         ? (Snapshot.Battery.Kind == BatteryKind.Level ? $"{Snapshot.Battery.Value}/{Snapshot.Battery.Maximum} 档" : $"{(Snapshot.Battery.IsApproximate ? "≈" : "")}{Snapshot.Battery.Value}%")
         : "—";
-    public string Connection => $"{Snapshot.TransportText} · {Snapshot.ConnectionText}";
+    public string Connection => $"{Snapshot.TransportText} · {Snapshot.ConnectionText}" + (IsEarbud ? (Shape == DeviceShape.EarClip ? " · 耳夹式" : " · 入耳式") : "");
     public string Updated => Snapshot.TimeText;
-    public string Status => string.Join(" · ", new[] {
+    public string Status => IsEarbud && Snapshot.Battery.IsValid && !Snapshot.Earbuds.IsValid
+        ? (Snapshot.IsHistorical ? "上次总电量" : Snapshot.IsSystemCache ? "总电量 · 缓存" : "总电量")
+        : string.Join(" · ", new[] {
         Snapshot.IsHistorical ? "上次电量" : "",
         Snapshot.IsSystemCache ? "系统缓存" : "",
         Snapshot.Battery.Kind == BatteryKind.Unsupported ? "电量暂不支持" : Snapshot.StatusText,

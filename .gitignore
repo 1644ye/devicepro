@@ -7,5 +7,6 @@ artifacts/
 .archive/
 research/
 firmware/
+.research/
 **/results-native.json
 *.log

@@ -22,6 +22,9 @@ public sealed class WindowsDeviceDiscovery
         var devices = new List<DeviceDescriptor>();
         var candidateKeys=interfaces.Select(i=>nodes.GetValueOrDefault(i.InstanceId)).Where(n=>n is not null)
             .Select(n=>GroupKey(n!,nodes)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        // Include all service children of a Bluetooth container, not just its root node.
+        candidateKeys.UnionWith(nodes.Values.Where(n => n.Id.StartsWith("BTHENUM\\DEV_", StringComparison.OrdinalIgnoreCase)
+            || n.Id.StartsWith("BTHLE\\DEV_", StringComparison.OrdinalIgnoreCase)).Select(n => GroupKey(n, nodes)));
         foreach (var group in nodes.Values.Where(n => candidateKeys.Contains(GroupKey(n,nodes))
                      || n.Id.StartsWith("BTHENUM\\DEV_",StringComparison.OrdinalIgnoreCase)
                      || n.Id.StartsWith("BTHLE\\DEV_",StringComparison.OrdinalIgnoreCase))
@@ -29,7 +32,9 @@ public sealed class WindowsDeviceDiscovery
         {
             var list = group.ToList(); var first = list[0];
             var hid = interfaces.Where(i=>list.Any(n=>n.Id.Equals(i.InstanceId,StringComparison.OrdinalIgnoreCase))).ToList();
-            var best = list.OrderBy(n=>n.Id.StartsWith("USB\\VID_",StringComparison.OrdinalIgnoreCase)?0:1).Select(n=>n.Product).FirstOrDefault(s=>!string.IsNullOrWhiteSpace(s))
+            var best = list.Where(n=>n.Id.StartsWith("BTHENUM\\DEV_",StringComparison.OrdinalIgnoreCase)
+                    || n.Id.StartsWith("BTHLE\\DEV_",StringComparison.OrdinalIgnoreCase)).Select(n=>n.Name).FirstOrDefault(s=>!string.IsNullOrWhiteSpace(s))
+                ?? list.OrderBy(n=>n.Id.StartsWith("USB\\VID_",StringComparison.OrdinalIgnoreCase)?0:1).Select(n=>n.Product).FirstOrDefault(s=>!string.IsNullOrWhiteSpace(s))
                 ?? hid.Select(h=>h.Product).FirstOrDefault(s=>!string.IsNullOrWhiteSpace(s))
                 ?? list.Select(n=>n.Name).FirstOrDefault(s=>!string.IsNullOrWhiteSpace(s)) ?? first.Id;
             var properties = new Dictionary<string,string>();

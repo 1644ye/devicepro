@@ -8,6 +8,30 @@ public enum ReadStatus { Idle, Reading, Success, Timeout, Failed, Unsupported, C
 public enum RefreshReason { Startup, Timer, Manual, DeviceChanged, Resume, ConfigurationChanged }
 public enum StartupView { Management, Panel, Tray }
 public enum AppTheme { System, Light, Dark }
+public enum DeviceShape { Generic, Keyboard, Mouse, InEar, EarClip }
+
+public sealed record EarbudBattery
+{
+    public BatteryReading Left { get; init; } = BatteryReading.Unknown;
+    public BatteryReading Right { get; init; } = BatteryReading.Unknown;
+    public BatteryReading Case { get; init; } = BatteryReading.Unknown;
+    public bool IsValid => Left.IsValid || Right.IsValid || Case.IsValid;
+    public string Text => $"左 {Format(Left)} · 右 {Format(Right)} · 盒 {Format(Case)}";
+    private static string Format(BatteryReading value) => value.IsValid ? $"{value.Value}%" : "—";
+}
+
+public static class DeviceAppearance
+{
+    public static DeviceShape FromName(string name)
+    {
+        var compact = new string(name.Where(char.IsLetterOrDigit).ToArray()).ToUpperInvariant();
+        if (compact.Contains("MOONDROPPILL")) return DeviceShape.EarClip;
+        if (compact.Contains("OPPOENCO")) return DeviceShape.InEar;
+        if (compact.Contains("V98PRO")) return DeviceShape.Keyboard;
+        if (compact.Contains("ATKA9PRO")) return DeviceShape.Mouse;
+        return DeviceShape.Generic;
+    }
+}
 
 public sealed record BatteryReading
 {
@@ -62,6 +86,8 @@ public sealed record DiscoverySnapshot
 /// <summary>Cached values MUST set IsSystemCache and MUST NOT invent BatterySampledAt.</summary>
 public sealed record DeviceReadResult
 {
+    public DeviceShape Shape { get; init; }
+    public EarbudBattery Earbuds { get; init; } = new();
     public string DeviceId { get; init; } = "";
     public DateTimeOffset QueryTime { get; init; } = DateTimeOffset.UtcNow;
     public BatteryReading Battery { get; init; } = BatteryReading.Unknown;
@@ -95,6 +121,8 @@ public sealed record MonitoredTarget
 
 public sealed record DeviceSnapshot
 {
+    public DeviceShape Shape { get; init; }
+    public EarbudBattery Earbuds { get; init; } = new();
     public string TargetId { get; init; } = "";
     public string DeviceId { get; init; } = "";
     public string DisplayName { get; init; } = "";

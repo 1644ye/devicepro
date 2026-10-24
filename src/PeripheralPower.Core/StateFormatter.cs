@@ -4,6 +4,8 @@ namespace PeripheralPower.Core;
 
 public static class StateFormatter
 {
+    public static bool ShowDeviceTrayIcon(DeviceSnapshot state) => !state.Hidden && state.Connection==ConnectionState.Connected
+        && state.Battery.IsValid && (state.LastValidBatteryAt.HasValue || state.BatteryObservedAt.HasValue);
     public static string Battery(DeviceSnapshot state)
     {
         var battery = state.Battery;
@@ -18,11 +20,10 @@ public static class StateFormatter
 
     public static string Time(DeviceSnapshot state, DateTimeOffset now)
     {
-        if (!state.Battery.IsValid) return "尚无有效读数";
+        if (!state.Battery.IsValid && !state.Earbuds.IsValid) return "尚无有效读数";
         if (state.IsSystemCache)
         {
-            var source = string.IsNullOrWhiteSpace(state.Source) ? "系统缓存" : state.Source;
-            return $"{source}；采样时间未知";
+            return "系统缓存 · 采样时间未知";
         }
         return state.LastValidBatteryAt is { } time ? $"{Timestamp(time, now)} 更新" : "采样时间未知";
     }
@@ -35,7 +36,7 @@ public static class StateFormatter
     }
 
     public static string TrayLine(DeviceSnapshot state, DateTimeOffset now) =>
-        $"{state.DisplayName}：{Battery(state)}（{Time(state, now)}）";
+        $"{state.DisplayName}：{Battery(state)}{(state.Earbuds.IsValid ? "；" + state.Earbuds.Text : "")}（{Time(state, now)}）";
 
     public static string TraySummary(IEnumerable<DeviceSnapshot> states, DateTimeOffset now)
     {

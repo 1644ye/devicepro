@@ -15,6 +15,10 @@ if (args.Length > 0 && args[0] == "--probe-read")
 }
 var tests = new (string Name, Func<Task> Run)[]
 {
+    ("VGN EVISION：事务匹配、边界与接口限制", VgnFixtures),
+    ("ATK HOLTEK：电量、充电、接收器离线", AtkFixtures),
+    ("断开隐藏、重连恢复及不完整发现保留未知", DisconnectTrayFixtures),
+    ("OPPO 独立左右耳、缺席编码、帧边界与缓存回退", OppoBatteryFixtures),
     ("电量范围和档位保持原始精度", BatteryValidation),
     ("失败保留有效电量和时间，不推断断开", FailurePreservesEvidence),
     ("缓存观察时间不能成为采样时间", CacheTimeSemantics),
@@ -51,6 +55,98 @@ Console.WriteLine($"RESULT {tests.Length - failed}/{tests.Length} passed (synthe
 return failed == 0 ? 0 : 1;
 
 static void Check(bool condition, string message = "断言失败") { if (!condition) throw new InvalidOperationException(message); }
+static Task VgnFixtures()
+{
+    var now=DateTimeOffset.UtcNow;
+    var packet=VgnBatteryQuery.CreateQuery(0x1234);
+    Check(packet.Length==64 && packet[0]==4 && packet[1]==0x34 && packet[2]==0x12 && packet[3]==0x1a);
+    packet[8]=55;packet[9]=0;
+    var result=VgnBatteryQuery.Decode("vgn",packet,0x1234,now)!;
+    Check(result.Battery.Value==55 && result.Connection==ConnectionState.Connected && !result.IsSystemCache);
+    Check(VgnBatteryQuery.Decode("vgn",packet,1,now)==null);
+    Check(VgnBatteryQuery.Decode("vgn",packet.AsSpan(0,10),0x1234,now)==null);
+    packet[9]=2;Check(VgnBatteryQuery.Decode("vgn",packet,0x1234,now)!.Charging==ChargingState.Charging);
+    packet[8]=0;Check(VgnBatteryQuery.Decode("vgn",packet,0x1234,now)!.Battery.Value==0);
+    packet[8]=101;
+    try{VgnBatteryQuery.Decode("vgn",packet,0x1234,now);throw new Exception("越界值未拒绝");}catch(InvalidDataException){}
+    var iface=new HidInterfaceDescriptor{VendorId=0x320f,ProductId=0x5088,UsagePage=0xff1c,Usage=0x92};
+    Check(VgnBatteryQuery.Matches(new DeviceDescriptor{DisplayName="VGN V98pro V2 2.4G Dongle",HidInterfaces=[iface]}));
+    Check(!VgnBatteryQuery.Matches(new DeviceDescriptor{DisplayName="VGN V98pro",HidInterfaces=[iface with {Usage=1}]}));
+    return Task.CompletedTask;
+}
+static Task AtkFixtures()
+{
+    var now=DateTimeOffset.UtcNow;var packet=new byte[65];packet[1]=0x82;packet[9]=0x80|45;packet[10]=1;
+    var result=AtkBatteryQuery.Decode("atk",packet,true,now)!;
+    Check(result.Battery.Value==45 && result.Charging==ChargingState.Charging && result.Connection==ConnectionState.Connected);
+    packet[10]=0;result=AtkBatteryQuery.Decode("atk",packet,true,now)!;
+    Check(!result.Battery.IsValid && result.Connection==ConnectionState.Disconnected && result.BatterySampledAt is null);
+    Check(AtkBatteryQuery.Decode("atk",packet,false,now)!.Battery.Value==45);
+    packet[10]=1;packet[9]=127;
+    try{AtkBatteryQuery.Decode("atk",packet,true,now);throw new Exception("越界值未拒绝");}catch(InvalidDataException){}
+    packet[1]=0x81;Check(AtkBatteryQuery.Decode("atk",packet,true,now)==null);
+    Check(AtkBatteryQuery.Decode("atk",packet.AsSpan(0,10),true,now)==null);
+    Check(AtkBatteryQuery.CreateQuery().SequenceEqual(new byte[]{0,0x82,0,0,0,0,0,0,0}));
+    var receiver=ProtocolCatalog.Classify(new DeviceDescriptor{DisplayName="Wireless mouse dongle-8k NANO",
+        HidInterfaces=[new HidInterfaceDescriptor{VendorId=0x373b,ProductId=0x1178,UsagePage=0xff10,Usage=1}]});
+    Check(receiver.AdapterId==AtkBatteryQuery.Adapter && receiver.Transport==ConnectionTransport.Receiver24Ghz
+        && receiver.DisplayName.Contains("ATK") && receiver.DisplayName.Contains("2.4G"));
+    Check(!AtkBatteryQuery.IsInterface(new HidInterfaceDescriptor{VendorId=0x373b,ProductId=0x1178,UsagePage=0xff02,Usage=2}));
+    Check(BluetoothConnectionQuery.Address(new DeviceDescriptor{InstanceIds=["BTHLE\\DEV_F71E262ED88C\\test"]})=="F71E262ED88C");
+    Check(BluetoothConnectionQuery.Address(new DeviceDescriptor{InstanceIds=["BTHENUM\\DEV_invalid-data"]})==null);
+    return Task.CompletedTask;
+}
+static async Task DisconnectTrayFixtures()
+{
+    var cache=new DeviceStateCache();var backend=new FakeBackend{Read=(d,_,_)=>Task.FromResult(Success(d.Id))};
+    await using var coordinator=new RefreshCoordinator(backend,cache);
+    coordinator.SetTargets([Target()]);coordinator.RequestRefresh();await coordinator.WhenIdleAsync();
+    Check(StateFormatter.ShowDeviceTrayIcon(cache.GetSnapshot("a")!));
+    backend.Devices.Clear();coordinator.RequestRefresh(RefreshReason.DeviceChanged);await coordinator.WhenIdleAsync();
+    var state=cache.GetSnapshot("a")!;
+    Check(state.Connection==ConnectionState.Disconnected && state.IsHistorical && state.Battery.IsValid);
+    Check(!StateFormatter.ShowDeviceTrayIcon(state));
+    backend.Errors.Add("模拟部分枚举失败");coordinator.RequestRefresh();await coordinator.WhenIdleAsync();
+    Check(cache.GetSnapshot("a")!.Connection==ConnectionState.Unknown);
+    backend.Errors.Clear();backend.Devices.Add(Device());coordinator.RequestRefresh();await coordinator.WhenIdleAsync();
+    Check(StateFormatter.ShowDeviceTrayIcon(cache.GetSnapshot("a")!));
+    cache.Apply("a",new DeviceReadResult{DeviceId="a",Status=ReadStatus.Success,Connection=ConnectionState.Disconnected});
+    Check(!StateFormatter.ShowDeviceTrayIcon(cache.GetSnapshot("a")!) && cache.GetSnapshot("a")!.Battery.IsValid);
+    Check(!StateFormatter.ShowDeviceTrayIcon(cache.GetSnapshot("a")! with {Connection=ConnectionState.Connected,Hidden=true}));
+}
+static Task OppoBatteryFixtures()
+{
+    var now=DateTimeOffset.UtcNow;
+    static byte[] Frame(params byte[] payload) => new byte[]{0xaa,(byte)(7+payload.Length),0,0,6,0x81,0xf0,(byte)payload.Length,0}.Concat(payload).ToArray();
+    var result=OppoBatteryQuery.Decode("oppo",Frame(0,3,1,65,2,90,3,0),now)!;
+    Check(result.Earbuds.Left.Value==65 && result.Earbuds.Right.Value==90 && !result.Earbuds.Case.IsValid);
+    Check(result.Battery.Value==65 && !result.IsSystemCache);
+    var one=OppoBatteryQuery.Decode("oppo",Frame(0,3,1,0,2,100,3,0),now)!;
+    Check(!one.Earbuds.Left.IsValid && one.Earbuds.Right.Value==100);
+    Check(OppoBatteryQuery.Decode("oppo",Frame(0,3,1,255,2,127,3,0),now)==null);
+    Check(OppoBatteryQuery.Decode("oppo",Frame(1,1,1,80),now)==null);
+    Check(OppoBatteryQuery.Decode("oppo",Frame(0,2,1,80),now)==null);
+    Check(OppoBatteryQuery.Decode("oppo",Frame(0,2,1,80,1,90),now)==null);
+    var truncated=Frame(0,1,2,80)[..^1];
+    Check(OppoBatteryQuery.Decode("oppo",truncated,now)==null);
+    var separate=OppoBatteryQuery.Decode("oppo",Frame(0,4,70,1,80,0,50,0),now)!;
+    Check(separate.Earbuds.Left.Value==70 && separate.Earbuds.Case.Value==50);
+    var cache=new DeviceStateCache();cache.SetTargets([Target("a","oppo")]);cache.Apply("a",result);
+    cache.Apply("a",new DeviceReadResult{DeviceId="oppo",Status=ReadStatus.Timeout});
+    Check(cache.GetSnapshot("a")!.IsHistorical && cache.GetSnapshot("a")!.Earbuds.Right.Value==90);
+    cache.Apply("a",new DeviceReadResult{DeviceId="oppo",Status=ReadStatus.Success,Battery=BatteryReading.Percent(80),IsSystemCache=true});
+    Check(!cache.GetSnapshot("a")!.Earbuds.IsValid, "总电量回退不能把旧左右耳冒充当前读数");
+    var boxOnly=OppoBatteryQuery.Decode("oppo",Frame(0,1,3,50),now)!;
+    cache.Apply("a",boxOnly);
+    Check(!cache.GetSnapshot("a")!.Battery.IsValid && cache.GetSnapshot("a")!.Earbuds.Case.Value==50);
+    cache.InvalidateSession();Check(cache.GetSnapshot("a")!.IsHistorical);
+    Check(DeviceAppearance.FromName("MOONDROP PILL")==DeviceShape.EarClip);
+    Check(DeviceAppearance.FromName("OPPO Enco Free4（丹拿版）")==DeviceShape.InEar);
+    Check(DeviceAppearance.FromName("ATK A9 PRO BLE")==DeviceShape.Mouse);
+    Check(DeviceAppearance.FromName("VGN V98pro V2 2.4G Dongle")==DeviceShape.Keyboard);
+    Check(!OppoBatteryQuery.Matches(new DeviceDescriptor{DisplayName="OPPO Enco Free4",Transport=ConnectionTransport.Bluetooth}));
+    return Task.CompletedTask;
+}
 static TaskCompletionSource Signal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
 static MonitoredTarget Target(string id = "a", params string[] deviceIds) => new()
 {
@@ -609,6 +705,7 @@ static bool ProcessExited(int id)
 
 sealed class FakeBackend : IHardwareBackend
 {
+    public List<string> Errors { get; } = [];
     public List<DeviceDescriptor> Devices { get; init; } = [new() { Id = "a", DisplayName = "a" }];
     public Func<DeviceDescriptor, int, CancellationToken, Task<DeviceReadResult>>? Read { get; init; }
     public int Discoveries;
@@ -618,7 +715,7 @@ sealed class FakeBackend : IHardwareBackend
     public Task<DiscoverySnapshot> DiscoverAsync(CancellationToken cancellationToken)
     {
         Interlocked.Increment(ref Discoveries);
-        return Task.FromResult(new DiscoverySnapshot { Devices = Devices });
+        return Task.FromResult(new DiscoverySnapshot { Devices = Devices, Errors = Errors });
     }
     public async Task<DeviceReadResult> ReadAsync(DeviceDescriptor device, CancellationToken cancellationToken)
     {

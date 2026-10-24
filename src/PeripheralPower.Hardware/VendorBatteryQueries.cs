@@ -12,6 +12,8 @@ public static class VendorBatteryQueries
 {
     internal static async Task<DeviceReadResult?> TryReadAsync(DeviceDescriptor device)
     {
+        if(VgnBatteryQuery.Matches(device)) return await VgnBatteryQuery.ReadAsync(device).ConfigureAwait(false);
+        if(device.HidInterfaces.Any(AtkBatteryQuery.IsInterface)) return await AtkBatteryQuery.ReadAsync(device).ConfigureAwait(false);
         if(device.HidInterfaces.Any(ProtocolCatalog.IsWobNativeInterface)||device.HidInterfaces.Any(ProtocolCatalog.IsWobNativeWiredInterface))
             return await WobNativeBatteryQuery.ReadAsync(device).ConfigureAwait(false);
         if(device.HidInterfaces.Any(ProtocolCatalog.IsOmniIdentityInterface) && device.HidInterfaces.Any(ProtocolCatalog.IsOmniMouseInterface))

@@ -14,13 +14,13 @@
     <Style x:Key="MutedText" TargetType="TextBlock"><Setter Property="Foreground" Value="{DynamicResource MutedBrush}" /><Setter Property="TextWrapping" Value="Wrap" /></Style>
     <Style x:Key="SectionTitle" TargetType="TextBlock"><Setter Property="Foreground" Value="{DynamicResource InkBrush}" /><Setter Property="FontSize" Value="18" /><Setter Property="FontWeight" Value="SemiBold" /><Setter Property="Margin" Value="0,6,0,12" /></Style>
     <DataTemplate x:Key="DeviceCard">
-      <Border Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1" CornerRadius="12" Padding="16,14" Margin="0,0,0,9">
+      <Border Background="{DynamicResource CardBrush}" BorderBrush="{DynamicResource LineBrush}" BorderThickness="1" CornerRadius="12" Padding="16,14" Margin="0,0,0,9" ToolTip="{Binding Detail}">
         <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
           <StackPanel>
-            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="27"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><TextBlock Text="{Binding Icon}" FontFamily="Segoe MDL2 Assets" Foreground="{DynamicResource AccentBrush}" FontSize="18" Margin="0,1,9,0" /><TextBlock Grid.Column="1" Text="{Binding Name}" ToolTip="{Binding Name}" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" /></Grid>
-            <TextBlock Text="{Binding Connection}" Style="{StaticResource MutedText}" Margin="0,10,0,0" /><TextBlock Text="{Binding Updated}" Style="{StaticResource MutedText}" FontSize="11" Margin="0,5,0,0" />
+            <Grid><Grid.ColumnDefinitions><ColumnDefinition Width="27"/><ColumnDefinition Width="*"/></Grid.ColumnDefinitions><Path Data="{Binding EarbudGeometry}" Visibility="{Binding EarbudVisibility}" Stroke="{DynamicResource AccentBrush}" StrokeThickness="1.8" Width="23" Height="20" Stretch="Uniform" HorizontalAlignment="Left"/><TextBlock Visibility="{Binding GenericVisibility}" Text="{Binding Icon}" FontFamily="Segoe MDL2 Assets" Foreground="{DynamicResource AccentBrush}" FontSize="18" Margin="0,1,9,0" /><TextBlock Grid.Column="1" Text="{Binding Name}" ToolTip="{Binding Name}" FontSize="15" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" /></Grid>
+            <TextBlock Text="{Binding Connection}" Style="{StaticResource MutedText}" Margin="0,10,0,0" /><TextBlock Text="{Binding EarbudText}" Visibility="{Binding EarbudVisibility}" FontSize="13" FontWeight="SemiBold" Margin="0,5,0,0" Foreground="{DynamicResource AccentBrush}"/><TextBlock Text="{Binding Updated}" Style="{StaticResource MutedText}" FontSize="11" Margin="0,5,0,0" />
           </StackPanel>
-          <StackPanel Grid.Column="1" HorizontalAlignment="Right" Margin="14,0,0,0"><TextBlock Text="{Binding Battery}" FontSize="29" FontWeight="SemiBold" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Right" /><TextBlock Text="{Binding Status}" Style="{StaticResource MutedText}" FontSize="11" Margin="0,6,0,0" MaxWidth="130" TextAlignment="Right" /></StackPanel>
+          <StackPanel Grid.Column="1" HorizontalAlignment="Right" Margin="14,0,0,0"><TextBlock Text="{Binding Battery}" FontSize="38" FontWeight="Bold" TextOptions.TextFormattingMode="Display" Foreground="{DynamicResource AccentBrush}" HorizontalAlignment="Right" /><TextBlock Text="{Binding Status}" Style="{StaticResource MutedText}" FontSize="11" Margin="0,6,0,0" MaxWidth="130" TextAlignment="Right" /></StackPanel>
         </Grid>
       </Border>
     </DataTemplate>

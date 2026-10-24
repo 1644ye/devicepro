@@ -161,7 +161,9 @@ public sealed class RefreshCoordinator : IAsyncDisposable
             .Select(device => (Target: target, Device: device))).ToArray();
         var foundTargets = selected.Select(x => x.Target.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var target in targets.Where(x => !foundTargets.Contains(x.Id)))
-            Apply(target.Id, new() { Status = ReadStatus.Failed, Error = "当前系统枚举中未发现目标；连接状态无法确认。" }, generation);
+            Apply(target.Id, new() { Status = ReadStatus.Failed,
+                Connection = discovery.Errors.Count == 0 ? ConnectionState.Disconnected : ConnectionState.Unknown,
+                Error = discovery.Errors.Count == 0 ? "完整枚举中未发现目标，设备已断开。" : "发现过程不完整，连接状态未知。" }, generation);
 
         foreach (var targetId in foundTargets)
         {

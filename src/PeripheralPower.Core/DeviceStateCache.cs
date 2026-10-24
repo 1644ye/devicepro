@@ -22,7 +22,7 @@ public sealed class DeviceStateCache
                     _states[state.TargetId] = state with
                     {
                         Battery = state.Battery ?? BatteryReading.Unknown,
-                        IsHistorical = state.Battery?.IsValid == true,
+                        IsHistorical = state.Battery?.IsValid == true || state.Earbuds.IsValid,
                         Connection = ConnectionState.Unknown,
                         Charging = ChargingState.Unknown,
                         Status = ReadStatus.Idle,
@@ -71,7 +71,7 @@ public sealed class DeviceStateCache
                     Connection = ConnectionState.Unknown,
                     Charging = ChargingState.Unknown,
                     Status = ReadStatus.Cancelled,
-                    IsHistorical = state.Battery.IsValid
+                    IsHistorical = state.Battery.IsValid || state.Earbuds.IsValid
                 };
     }
 
@@ -104,15 +104,17 @@ public sealed class DeviceStateCache
         lock (_gate)
         {
             if (!_states.TryGetValue(targetId, out var prior)) return null;
-            var valid = result.Battery.IsValid && result.Status == ReadStatus.Success;
+            var valid = (result.Battery.IsValid || result.Earbuds.IsValid) && result.Status == ReadStatus.Success;
             var battery = valid ? result.Battery : prior.Battery.IsValid ? prior.Battery : result.Battery;
-            var keepPrior = !valid && prior.Battery.IsValid;
+            var keepPrior = !valid && (prior.Battery.IsValid || prior.Earbuds.IsValid);
             // The old successful timestamp survives errors and cache observations.
             // For a cache value, the formatter explicitly refuses to label this timestamp as its sample time.
             return _states[targetId] = prior with
             {
                 DeviceId = result.DeviceId,
                 Battery = battery,
+                Shape = result.Shape != DeviceShape.Generic ? result.Shape : prior.Shape,
+                Earbuds = valid ? result.Earbuds : prior.Earbuds,
                 Connection = result.Connection,
                 Transport = result.Transport,
                 Charging = result.Charging,
@@ -122,7 +124,7 @@ public sealed class DeviceStateCache
                 BatteryObservedAt = valid ? result.BatteryObservedAt : prior.BatteryObservedAt,
                 OnlineEvidenceAt = result.OnlineEvidenceAt ?? prior.OnlineEvidenceAt,
                 IsSystemCache = keepPrior ? prior.IsSystemCache : result.IsSystemCache,
-                IsHistorical = battery.IsValid && (keepPrior || result.Connection == ConnectionState.Disconnected),
+                IsHistorical = (battery.IsValid || (valid ? result.Earbuds : prior.Earbuds).IsValid) && (keepPrior || result.Connection == ConnectionState.Disconnected),
                 Source = keepPrior ? prior.Source : result.Source,
                 Error = result.Error
             };

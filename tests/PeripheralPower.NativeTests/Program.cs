@@ -261,6 +261,14 @@ internal static class Program
         var controller = new PeripheralPower.App.AppController(directory);
         try
         {
+            Assert(controller.Native.TrayDeviceIds.Count==1 && !controller.Native.TrayDeviceIds.ContainsKey("fixture-mouse"), "Restart must not present unconfirmed cached devices as connected.");
+            var flags=System.Reflection.BindingFlags.Instance|System.Reflection.BindingFlags.NonPublic;
+            var liveCache=(DeviceStateCache)typeof(PeripheralPower.App.AppController).GetField("_cache",flags)!.GetValue(controller)!;
+            var update=typeof(PeripheralPower.App.AppController).GetMethod("UpdateCards",flags)!;
+            foreach(var target in targets.Where(t=>t.Id!="fixture-unknown"))
+                liveCache.Apply(target.Id,new DeviceReadResult{DeviceId=target.DeviceIds[0],Battery=BatteryReading.Percent(82),
+                    Status=ReadStatus.Success,Connection=ConnectionState.Connected,IsSystemCache=true,BatteryObservedAt=time});
+            update.Invoke(controller,null);
             Assert(controller.Native.TrayIconCount == 2 && controller.Native.TrayDeviceIds.ContainsKey("fixture-mouse") && controller.Native.TrayDeviceIds.ContainsKey("fixture-keyboard"), "Unknown/hidden devices got icons or valid cache was omitted.");
             Assert(controller.Native.TrayDevices.All(d => d.IsHistorical), "Loaded cache was presented as a live reading.");
             uint iconId = controller.Native.TrayDeviceIds["fixture-mouse"];
@@ -272,6 +280,14 @@ internal static class Program
             Assert(settings.IsVisible && settings.IsSettingsPageSelected, "Right click did not open the global settings page.");
             Assert(controller.Discovered.Count == 0 && !controller.Coordinator.IsRefreshing, "Clicking tray requested hardware work.");
             Assert(!File.Exists(Path.Combine(directory, "hardware-metrics.json")), "The no-target route test ran a hardware probe.");
+            liveCache.Apply("fixture-mouse",new DeviceReadResult{DeviceId="fixture-mouse-device",Connection=ConnectionState.Disconnected,Status=ReadStatus.Success});
+            update.Invoke(controller,null);
+            Assert(controller.Native.TrayIconCount==1 && !controller.Native.TrayDeviceIds.ContainsKey("fixture-mouse"),"Disconnected mouse icon survived.");
+            Assert(liveCache.GetSnapshot("fixture-mouse")!.Battery.IsValid,"Disconnect erased battery history.");
+            liveCache.Apply("fixture-mouse",new DeviceReadResult{DeviceId="fixture-mouse-device",Connection=ConnectionState.Connected,
+                Status=ReadStatus.Success,Battery=BatteryReading.Percent(81),BatterySampledAt=time});
+            update.Invoke(controller,null);
+            Assert(controller.Native.TrayIconCount==2 && controller.Native.TrayDeviceIds.ContainsKey("fixture-mouse"),"Reconnect did not restore the icon.");
         }
         finally { controller.ExitAsync().GetAwaiter().GetResult(); }
     }

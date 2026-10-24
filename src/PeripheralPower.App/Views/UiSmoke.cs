@@ -25,7 +25,8 @@ internal static class UiSmoke
         await controller.DiscoverAsync();
         await controller.Coordinator.WhenIdleAsync();
         var management = Application.Current.Windows.OfType<ManagementWindow>().Single();
-        foreach (var d in controller.Discovered.OrderBy(d => d.Device.AdapterId.Contains("rog", StringComparison.OrdinalIgnoreCase) ? 0 : d.Device.AdapterId.StartsWith("wob.", StringComparison.OrdinalIgnoreCase) ? 1 : 2).Take(3).ToArray()) controller.AddTarget(d.Device);
+        foreach (var d in controller.Discovered.OrderBy(d => d.Device.AdapterId is "atk.holtek.battery" or "vgn.v98pro.evision" ? -1 : DeviceAppearance.FromName(d.Device.DisplayName) switch
+            { DeviceShape.EarClip => 0, DeviceShape.InEar => 1, DeviceShape.Mouse => 2, DeviceShape.Keyboard => 3, _ => 4 }).Take(6).ToArray()) controller.AddTarget(d.Device);
         await controller.Coordinator.WhenIdleAsync();
         controller.Config.Theme = AppTheme.Light; controller.ApplySettings();
         await Application.Current.Dispatcher.InvokeAsync(() => { }, DispatcherPriority.ApplicationIdle);
