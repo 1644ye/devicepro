@@ -49,6 +49,7 @@ public partial class ManagementWindow : Window
         StartupBox.IsChecked = status.Enabled;
         StartupStatus.Text = !string.IsNullOrEmpty(status.Error) ? status.Error : (status.DisabledByWindows ? "已注册，但被 Windows 启动应用设置禁用" : status.Enabled ? "实际状态：已启用，登录后仅显示托盘" : "实际状态：未启用");
     }
+    async void CheckUpdate(object sender, RoutedEventArgs e) => await UpdateService.CheckAsync(_controller, true);
     void SaveSettings(object sender, RoutedEventArgs e)
     {
         if (!int.TryParse(IntervalBox.Text, out int interval) || interval < 30000 || interval > 1800000) { SettingsStatus.Text = "刷新周期必须为 30000～1800000 毫秒的整数。"; return; }

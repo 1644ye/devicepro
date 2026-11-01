@@ -15,6 +15,7 @@ if (args.Length > 0 && args[0] == "--probe-read")
 }
 var tests = new (string Name, Func<Task> Run)[]
 {
+    ("USB 身份跨 Container 重建及配置重载", UsbIdentityFixtures),
     ("VGN EVISION：事务匹配、边界与接口限制", VgnFixtures),
     ("ATK HOLTEK：电量、充电、接收器离线", AtkFixtures),
     ("断开隐藏、重连恢复及不完整发现保留未知", DisconnectTrayFixtures),
@@ -55,6 +56,21 @@ Console.WriteLine($"RESULT {tests.Length - failed}/{tests.Length} passed (synthe
 return failed == 0 ? 0 : 1;
 
 static void Check(bool condition, string message = "断言失败") { if (!condition) throw new InvalidOperationException(message); }
+static Task UsbIdentityFixtures()
+{
+    var original = new DeviceDescriptor { Id="container:old", InstanceIds=[@"USB\VID_0B05&PID_1ACE\SERIAL1", @"USB\VID_0B05&PID_1ACE&MI_02\IFACE"] };
+    var target = JsonSerializer.Deserialize<MonitoredTarget>(JsonSerializer.Serialize(new MonitoredTarget { DeviceIds=DeviceIdentity.Keys(original).ToList() }))!;
+    var rebooted = original with { Id="container:new" };
+    Check(DeviceIdentity.Matches(target, rebooted, [rebooted]), "重启后必须按 USB 实例恢复");
+    Check(target.DeviceIds.Count==2, "不能保存接口标识作为物理设备别名");
+    var other = rebooted with { Id="other", InstanceIds=[@"USB\VID_0B05&PID_1ACE\SERIAL2"] };
+    Check(DeviceIdentity.Matches(target,other,[other]), "唯一 OMNI 接收器实例变化后恢复");
+    Check(!DeviceIdentity.Matches(target,other,[rebooted,other]), "多只 OMNI 时禁止型号恢复");
+    var duplicate = rebooted with { Id="duplicate" };
+    Check(!DeviceIdentity.Matches(target,rebooted,[rebooted,duplicate]), "冲突标识必须拒绝");
+    Check(DeviceIdentity.Matches(new MonitoredTarget {DeviceIds=[original.Id]},original,[original]), "兼容旧配置");
+    return Task.CompletedTask;
+}
 static Task VgnFixtures()
 {
     var now=DateTimeOffset.UtcNow;

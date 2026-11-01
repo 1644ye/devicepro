@@ -26,6 +26,7 @@ public partial class App : Application
             Controller = new(data);
             bool silent = e.Args.Contains("--startup") || e.Args.Contains("--autostart") || e.Args.Contains("--tray") || e.Args.Contains("--ui-smoke") || e.Args.Contains("--diagnose");
             Controller.Start(silent);
+            if (!e.Args.Contains("--ui-smoke") && !e.Args.Contains("--diagnose") && data == null) _ = UpdateService.CheckAsync(Controller);
             var smokeIndex = Array.IndexOf(e.Args, "--ui-smoke");
             if (smokeIndex >= 0 && smokeIndex + 1 < e.Args.Length) {
                 await Views.UiSmoke.RunAsync(Controller, Path.GetFullPath(e.Args[smokeIndex + 1]));

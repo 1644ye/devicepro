@@ -79,3 +79,8 @@ dotnet publish src/PeripheralPower.App/PeripheralPower.App.csproj -c Release -r 
 新增型号按 [适配指南](docs/ADAPTER-GUIDE.md) 操作。项目采用 GPL-3.0；上游来源和许可证见 [第三方声明](THIRD-PARTY-NOTICES.md)。
 
 目标实测平台是 Windows 11 x64（build 26100）。没有运行 Windows 10、Windows on ARM 或其他架构的兼容性测试，不宣称已支持这些环境。
+
+## 软件更新（1.2.0）
+启动时自动检查 GitHub 最新正式 Release，发现新版后提示下载并重启安装；全局设置中也可手动检查。网络失败不影响电量监测。设备配置保存在 LocalAppData，更新时保留。安装失败恢复旧文件，错误记录在数据目录 update-error.txt。更新包和旧文件备份暂存于系统临时目录。
+发布：将项目 Version 更新后推送对应 v 版本标签，GitHub Actions 构建、测试并上传 PeripheralPower-win-x64.zip。
+ROG：Container ID 和 USB 实例变化时，允许唯一 OMNI 接收器恢复关联；多只接收器时不按型号猜测。

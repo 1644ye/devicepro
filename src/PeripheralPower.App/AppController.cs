@@ -126,6 +126,17 @@ public sealed class AppController
     void UpdateDiscovery(DiscoverySnapshot discovery)
     {
         _lastDiscovery = discovery;
+        bool identitiesChanged = false;
+        for (int index = 0; index < Config.Targets.Count; index++)
+        {
+            var target = Config.Targets[index];
+            var matches = discovery.Devices.Where(d => DeviceIdentity.Matches(target, d, discovery.Devices));
+            var keys = target.DeviceIds.Concat(matches.SelectMany(DeviceIdentity.Keys)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            if (keys.Count == target.DeviceIds.Count) continue;
+            Config.Targets[index] = target with { DeviceIds = keys };
+            identitiesChanged = true;
+        }
+        if (identitiesChanged) TargetsChanged();
         Discovered.Clear(); foreach (var d in discovery.Devices.OrderBy(d => d.DisplayName)) Discovered.Add(new(d));
         foreach (var error in discovery.Errors) _log.Write("discovery", error);
     }
@@ -179,7 +190,7 @@ public sealed class AppController
     public void AddTarget(DeviceDescriptor descriptor)
     {
         if (Config.Targets.Any(t => t.DeviceIds.Contains(descriptor.Id, StringComparer.OrdinalIgnoreCase))) return;
-        Config.Targets.Add(new() { DeviceIds = [descriptor.Id], DisplayName = descriptor.DisplayName, Order = Config.Targets.Count });
+        Config.Targets.Add(new() { DeviceIds = DeviceIdentity.Keys(descriptor).ToList(), DisplayName = descriptor.DisplayName, Order = Config.Targets.Count });
         TargetsChanged();
     }
     public void LinkTarget(string id, string deviceId)

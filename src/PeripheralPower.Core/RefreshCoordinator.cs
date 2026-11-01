@@ -157,7 +157,7 @@ public sealed class RefreshCoordinator : IAsyncDisposable
         // Query all manually linked mode identities once per cycle. A cached Bluetooth entry
         // must not hide a valid current wired result simply because it enumerated first.
         var selected = targets.SelectMany(target => discovery.Devices
-            .Where(device => target.DeviceIds.Contains(device.Id, StringComparer.OrdinalIgnoreCase))
+            .Where(device => DeviceIdentity.Matches(target, device, discovery.Devices))
             .Select(device => (Target: target, Device: device))).ToArray();
         var foundTargets = selected.Select(x => x.Target.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var target in targets.Where(x => !foundTargets.Contains(x.Id)))

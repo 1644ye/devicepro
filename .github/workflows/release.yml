@@ -1,0 +1,28 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - name: Build and test
+        shell: pwsh
+        run: ./scripts/build.ps1
+      - name: Publish
+        shell: pwsh
+        run: |
+          dotnet publish src/PeripheralPower.App -c Release -r win-x64 --self-contained true -o artifacts/win-x64 --configfile NuGet.Config
+          if ($LASTEXITCODE) { throw 'Publish failed' }
+          Compress-Archive -Path artifacts/win-x64/* -DestinationPath artifacts/PeripheralPower-win-x64.zip
+      - name: Create GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create $env:GITHUB_REF_NAME artifacts/PeripheralPower-win-x64.zip --verify-tag --title $env:GITHUB_REF_NAME --generate-notes
